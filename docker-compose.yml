@@ -1,0 +1,74 @@
+services:
+  # PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine
+    container_name: fastor7-crm-db
+    environment:
+      POSTGRES_DB: fastor7_crm
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Node.js API Service
+  api:
+    build: .
+    container_name: fastor7-crm-api
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: fastor7_crm
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: docker-dev-jwt-secret
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - crm-network
+    volumes:
+      - ./src:/app/src
+      - ./package.json:/app/package.json
+    command: npm run dev
+
+  # Test Service - uses same database but with different tables
+  test:
+    build: .
+    container_name: fastor7-crm-test
+    environment:
+      NODE_ENV: test
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: fastor7_crm
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: test-jwt-secret-key
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - crm-network
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./package.json:/app/package.json
+    command: npm test
+
+networks:
+  crm-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
